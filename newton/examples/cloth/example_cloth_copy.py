@@ -28,11 +28,27 @@ import newton.examples
 
 
 class Example:
+    def draw_ground_rectangle(self):
+        """Draws a rectangle outline on the ground matching the cloth's initial position, orientation, and size."""
+        # Use the same parameters as the cloth
+        rot = wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), wp.pi*0)  # cloth initial rotation
+        w = self.sim_width * 0.05  # cloth width
+        h = self.sim_height * 0.05  # cloth height
+        pos = wp.vec3(w, h, 0.0)  # cloth initial position
+        size = (w, h, 0.01)  # thin box, matches cloth area
+        color = wp.vec3(1.0, 0.0, 0.0)  # Red
+        self.viewer.log_shapes(
+            "/ground_box",
+            newton.GeoType.BOX,
+            size,
+            wp.array([wp.transform(pos, rot)], dtype=wp.transform),
+            wp.array([color], dtype=wp.vec3),
+        )
     def __init__(
         self,
         viewer,
         solver_type: str = "vbd",
-        height=32,
+        height=64,
         width=32,
     ):
         # setup simulation parameters first
@@ -73,7 +89,7 @@ class Example:
         # common cloth properties
         common_params = {
             "pos": wp.vec3(0.0, 0.0, 4.0),
-            "rot": wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), wp.pi/2),
+            "rot": wp.quat_from_axis_angle(wp.vec3(1.0, 0.0, 0.0), wp.pi*0), #wp.pi/2),
             "vel": wp.vec3(0.0, 0.0, 0.0),
             "dim_x": self.sim_width,
             "dim_y": self.sim_height,
@@ -189,6 +205,7 @@ class Example:
         self.viewer.begin_frame(self.sim_time)
         self.viewer.log_state(self.state_0)
         self.viewer.log_contacts(self.contacts, self.state_0)
+        self.draw_ground_rectangle()
         self.viewer.end_frame()
 
 

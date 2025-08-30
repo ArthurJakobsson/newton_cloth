@@ -183,6 +183,7 @@ def main():
         "basic_shapes": "newton.examples.basic.example_basic_shapes",
         "basic_joints": "newton.examples.basic.example_basic_joints",
         "cloth_bending": "newton.examples.cloth.example_cloth_bending",
+        "cloth_copy": "newton.examples.cloth.example_cloth_copy",
         "cloth_franka": "newton.examples.cloth.example_cloth_franka",
         "cloth_hanging": "newton.examples.cloth.example_cloth_hanging",
         "cloth_style3d": "newton.examples.cloth.example_cloth_style3d",
