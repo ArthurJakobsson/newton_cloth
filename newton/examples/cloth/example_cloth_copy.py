@@ -46,6 +46,12 @@ class Example:
             wp.array([wp.transform(pos, rot)], dtype=wp.transform),
             wp.array([color], dtype=wp.vec3),
         )
+    def add_box(self, builder, pos, name, size=(0.2, 0.2, 0.2), density=3.0):
+        cfg = builder.default_shape_cfg.copy()
+        cfg.density = density
+        body_box = builder.add_body(xform=wp.transform(p=pos, q=wp.quat_identity()))
+        builder.add_shape_box(body_box, hx=size[0], hy=size[1], hz=size[2], cfg=cfg)
+        self.boxes[name] = body_box
 
     def __init__(
         self,
@@ -76,6 +82,11 @@ class Example:
 
         self.viewer = viewer
 
+        # Track box indices and targets
+        self.boxes = {}
+        self.box_targets = {}
+        self.box_moved = False
+
         if self.solver_type == "style3d":
             builder = newton.sim.Style3DModelBuilder()
         else:
@@ -105,13 +116,16 @@ class Example:
             "particle_radius": 0.05,
         }
 
-        # Add a box above the cloth using the simple approach from example_basic_shapes.py
-        drop_z = 2.0
-        cfg = builder.default_shape_cfg.copy()
-        cfg.density = 3.0
-        body_box = builder.add_body(xform=wp.transform(p=wp.vec3(1.0, 2.0, drop_z), q=wp.quat_identity()))
-        builder.add_shape_box(body_box, hx=0.2, hy=0.2, hz=0.2)
-        
+        # Create 3 uniquely named boxes outside the cloth area
+        self.add_box(builder, pos=wp.vec3(-2.0, -2.0, 0.0), name="box_1")
+        self.add_box(builder, pos=wp.vec3(-3.0,-3.0, 0.0), name="box_2")
+        self.add_box(builder, pos=wp.vec3(-4.0, -4.0, 0.0), name="box_3")
+        # Store target positions for moving boxes after 5 seconds
+        self.box_targets = {
+            "box_1": wp.vec3(1.0, 1.0, 2.0),
+            "box_2": wp.vec3(2.0, 2.0, 2.0),
+            "box_3": wp.vec3(3.0, 3.0, 2.0),
+        }
 
         solver_params = {}
         if self.solver_type == "euler":
@@ -202,11 +216,17 @@ class Example:
             self.state_0, self.state_1 = self.state_1, self.state_0
 
     def step(self):
+        # Move boxes after 5 seconds
+        if (not self.box_moved) and (self.sim_time >= 5.0):
+            for name, idx in self.boxes.items():
+                new_pos = self.box_targets[name]
+                # Update body transform in state_0
+                self.state_0.body_q[idx] = wp.transform(new_pos, wp.quat_identity())
+            self.box_moved = True
         if self.graph:
             wp.capture_launch(self.graph)
         else:
             self.simulate()
-
         self.sim_time += self.frame_dt
 
     def test(self):

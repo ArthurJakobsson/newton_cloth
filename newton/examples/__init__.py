@@ -177,11 +177,13 @@ def main():
 
     # Map short names to full module paths
     example_map = {
+        "example_basic_rope": "newton.examples.basic.example_basic_rope",
         "basic_pendulum": "newton.examples.basic.example_basic_pendulum",
         "basic_urdf": "newton.examples.basic.example_basic_urdf",
         "basic_viewer": "newton.examples.basic.example_basic_viewer",
         "basic_shapes": "newton.examples.basic.example_basic_shapes",
         "basic_joints": "newton.examples.basic.example_basic_joints",
+        "basic_rope": "newton.examples.basic.example_basic_rope",
         "cloth_bending": "newton.examples.cloth.example_cloth_bending",
         "cloth_copy": "newton.examples.cloth.example_cloth_copy",
         "cloth_franka": "newton.examples.cloth.example_cloth_franka",
@@ -200,6 +202,7 @@ def main():
         "robot_g1": "newton.examples.robot.example_robot_g1",
         "robot_h1": "newton.examples.robot.example_robot_h1",
         "robot_humanoid": "newton.examples.robot.example_robot_humanoid",
+        "robot_franka_rope": "newton.examples.robot.example_robot_franka_rope",
         "robot_policy": "newton.examples.robot.example_robot_policy",
         "selection_articulations": "newton.examples.selection.example_selection_articulations",
         "selection_cartpole": "newton.examples.selection.example_selection_cartpole",
