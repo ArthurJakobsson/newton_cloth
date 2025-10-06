@@ -94,7 +94,7 @@ class Example:
         # finalize model
         self.model = scene.finalize()
 
-        self.solver = newton.solvers.SolverMuJoCo(self.model)
+        self.solver = newton.solvers.SolverMuJoCo(self.model, njmax=50)
 
         self.viewer = viewer
 
@@ -213,9 +213,9 @@ class Example:
         else:
             # flip velocities
             if self.reset_count % 2 == 0:
-                self.default_ant_root_velocities.fill_(wp.spatial_vector(0.0, 0.0, 0.0, 0.0, 5.0, 0.0))
+                self.default_ant_root_velocities.fill_(wp.spatial_vector(0.0, 5.0, 0.0, 0.0, 0.0, 0.0))
             else:
-                self.default_ant_root_velocities.fill_(wp.spatial_vector(0.0, 0.0, 0.0, 0.0, -5.0, 0.0))
+                self.default_ant_root_velocities.fill_(wp.spatial_vector(0.0, -5.0, 0.0, 0.0, 0.0, 0.0))
 
             # randomize materials
             material_mu = self.ants.get_attribute("shape_material_mu", self.model)
@@ -253,7 +253,12 @@ class Example:
         self.viewer.end_frame()
 
     def test(self):
-        pass
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "all bodies are above the ground",
+            lambda q, qd: q[2] > 0.01,
+        )
 
 
 if __name__ == "__main__":
@@ -265,8 +270,6 @@ if __name__ == "__main__":
         help="Total number of simulated environments.",
     )
 
-    args = parser.parse_known_args()[0]
-
     viewer, args = newton.examples.init(parser)
 
     if USE_TORCH:
@@ -276,4 +279,4 @@ if __name__ == "__main__":
 
     example = Example(viewer, num_envs=args.num_envs)
 
-    newton.examples.run(example)
+    newton.examples.run(example, args)

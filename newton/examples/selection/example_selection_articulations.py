@@ -72,8 +72,8 @@ def reset_kernel(
         rng = wp.rand_init(seed, tid)
         spin_vel = 4.0 * wp.pi * (0.5 - wp.randf(rng))
         jump_vel = 3.0 * wp.randf(rng)
-        ant_root_velocities[tid] = wp.spatial_vector(0.0, 0.0, spin_vel, 0.0, 0.0, jump_vel)
-        hum_root_velocities[tid] = wp.spatial_vector(0.0, 0.0, -spin_vel, 0.0, 0.0, jump_vel)
+        ant_root_velocities[tid] = wp.spatial_vector(0.0, 0.0, jump_vel, 0.0, 0.0, spin_vel)
+        hum_root_velocities[tid] = wp.spatial_vector(0.0, 0.0, jump_vel, 0.0, 0.0, -spin_vel)
 
 
 @wp.kernel
@@ -116,7 +116,7 @@ class Example:
         # finalize model
         self.model = scene.finalize()
 
-        self.solver = newton.solvers.SolverMuJoCo(self.model)
+        self.solver = newton.solvers.SolverMuJoCo(self.model, njmax=100, ncon_per_env=50)
 
         self.viewer = viewer
 
@@ -284,12 +284,18 @@ class Example:
         self.viewer.log_state(self.state_0)
         self.viewer.end_frame()
 
+    def test(self):
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "all bodies are above the ground",
+            lambda q, qd: q[2] > 0.01,
+        )
+
 
 if __name__ == "__main__":
     parser = newton.examples.create_parser()
     parser.add_argument("--num-envs", type=int, default=16, help="Total number of simulated environments.")
-
-    args = parser.parse_known_args()[0]
 
     viewer, args = newton.examples.init(parser)
 
@@ -300,4 +306,4 @@ if __name__ == "__main__":
 
     example = Example(viewer, num_envs=args.num_envs)
 
-    newton.examples.run(example)
+    newton.examples.run(example, args)

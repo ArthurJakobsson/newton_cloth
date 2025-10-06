@@ -34,7 +34,6 @@ from newton.selection import ArticulationView
 
 USE_TORCH = False
 COLLAPSE_FIXED_JOINTS = False
-VERBOSE = True
 
 
 @wp.kernel
@@ -56,7 +55,7 @@ def apply_forces_kernel(joint_q: wp.array2d(dtype=float), joint_f: wp.array2d(dt
 
 
 class Example:
-    def __init__(self, viewer, num_envs=16):
+    def __init__(self, viewer, num_envs=16, verbose=True):
         self.fps = 60
         self.frame_dt = 1.0 / self.fps
 
@@ -69,7 +68,6 @@ class Example:
         env = newton.ModelBuilder()
         env.add_usd(
             newton.examples.get_asset("cartpole.usda"),
-            xform=wp.transform((0.0, 0.0, 2.0), wp.quat_identity()),
             collapse_fixed_joints=COLLAPSE_FIXED_JOINTS,
             enable_self_collisions=False,
         )
@@ -91,7 +89,7 @@ class Example:
         # =======================
         # get cartpole view
         # =======================
-        self.cartpoles = ArticulationView(self.model, "/cartPole", verbose=VERBOSE)
+        self.cartpoles = ArticulationView(self.model, "/cartPole", verbose=verbose)
 
         # =========================
         # randomize initial state
@@ -176,7 +174,48 @@ class Example:
         self.viewer.end_frame()
 
     def test(self):
-        pass
+        num_bodies_per_env = self.model.body_count // self.num_envs
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "cart is at ground level and has correct orientation",
+            lambda q, qd: q[2] == 0.0 and newton.utils.vec_allclose(q.q, wp.quat_identity()),
+            indices=[i * num_bodies_per_env for i in range(self.num_envs)],
+        )
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "cart only moves along y direction",
+            lambda q, qd: qd[0] == 0.0
+            and abs(qd[1]) > 0.05
+            and qd[2] == 0.0
+            and wp.length_sq(wp.spatial_bottom(qd)) == 0.0,
+            indices=[i * num_bodies_per_env for i in range(self.num_envs)],
+        )
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "pole1 only has y-axis linear velocity and x-axis angular velocity",
+            lambda q, qd: qd[0] == 0.0
+            and abs(qd[1]) > 0.05
+            and qd[2] == 0.0
+            and abs(qd[3]) > 0.3
+            and qd[4] == 0.0
+            and qd[5] == 0.0,
+            indices=[i * num_bodies_per_env + 1 for i in range(self.num_envs)],
+        )
+        newton.examples.test_body_state(
+            self.model,
+            self.state_0,
+            "pole2 only has yz-plane linear velocity and x-axis angular velocity",
+            lambda q, qd: qd[0] == 0.0
+            and abs(qd[1]) > 0.05
+            and abs(qd[2]) > 0.05
+            and abs(qd[3]) > 0.2
+            and qd[4] == 0.0
+            and qd[5] == 0.0,
+            indices=[i * num_bodies_per_env + 2 for i in range(self.num_envs)],
+        )
 
 
 if __name__ == "__main__":
@@ -188,8 +227,6 @@ if __name__ == "__main__":
         help="Total number of simulated environments.",
     )
 
-    args = parser.parse_known_args()[0]
-
     viewer, args = newton.examples.init(parser)
 
     if USE_TORCH:
@@ -199,4 +236,4 @@ if __name__ == "__main__":
 
     example = Example(viewer, num_envs=args.num_envs)
 
-    newton.examples.run(example)
+    newton.examples.run(example, args)

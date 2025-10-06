@@ -88,6 +88,8 @@ from ._src.utils import (  # noqa: E402
     smooth_max,
     smooth_min,
     vec_abs,
+    vec_allclose,
+    vec_inside_limits,
     vec_leaky_max,
     vec_leaky_min,
     vec_max,
@@ -101,6 +103,8 @@ __all__ += [
     "smooth_max",
     "smooth_min",
     "vec_abs",
+    "vec_allclose",
+    "vec_inside_limits",
     "vec_leaky_max",
     "vec_leaky_min",
     "vec_max",
@@ -119,9 +123,19 @@ __all__ += [
 # ==================================================================================
 # recorders
 # ==================================================================================
-from ._src.utils.recorder import BasicRecorder, ModelAndStateRecorder  # noqa: E402
+from ._src.utils.recorder import RecorderBasic, RecorderModelAndState  # noqa: E402
 
 __all__ += [
-    "BasicRecorder",
-    "ModelAndStateRecorder",
+    "RecorderBasic",
+    "RecorderModelAndState",
+]
+
+# ==================================================================================
+# run benchmark
+# ==================================================================================
+
+from ._src.utils.benchmark import run_benchmark  # noqa: E402
+
+__all__ += [
+    "run_benchmark",
 ]
