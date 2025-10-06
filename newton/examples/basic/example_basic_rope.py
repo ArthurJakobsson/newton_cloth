@@ -14,10 +14,10 @@
 # limitations under the License.
 
 ###########################################################################
-# Example Basic Rope with Franka
+# Example Basic Rope
 #
 # Builds a rope as a chain of capsules connected by ball-like joints with
-# adjustable angular stiffness (rigidity). The rope is held by a Franka arm.
+# adjustable angular stiffness (rigidity). The rope is anchored to a fixed point.
 # Parameters allow varying total rope length, width, rigidity, and end weight.
 #
 # Command: python -m newton.examples basic_rope --length 5 --width 0.1 \
@@ -87,12 +87,9 @@ class Example:
         builder.soft_contact_kd = 2e-3
         builder.soft_contact_mu = 0.5  # friction
 
-        # Create Franka articulation
-        self.create_articulation(builder)
-
-        # Build rope attached to Franka end effector (only if not disabled)
-        if not getattr(args, 'no_rope', False):
-            self.create_rope(builder, length, radius, segments, rigidity, damping, end_weight)
+        # Create anchor point and build rope
+        anchor_body = self.create_anchor(builder)
+        self.create_rope(builder, length, radius, segments, rigidity, damping, end_weight, anchor_body)
 
         # finalize model
         self.model = builder.finalize()
@@ -117,33 +114,18 @@ class Example:
 
         self.capture()
 
-    def create_articulation(self, builder):
-        asset_path = newton.utils.download_asset("franka_emika_panda")
-
-        builder.add_urdf(
-            str(asset_path / "urdf" / "fr3_franka_hand.urdf"),
+    def create_anchor(self, builder):
+        # Create a fixed anchor point for the rope (mass=0 makes it kinematic/fixed)
+        anchor_body = builder.add_body(
             xform=wp.transform(
-                (float(self.args.anchor_x), float(self.args.anchor_y), 0.0),
-                wp.quat_identity(),
+                p=wp.vec3(float(self.args.anchor_x), float(self.args.anchor_y), float(self.args.anchor_height)),
+                q=wp.quat_identity()
             ),
-            floating=False,
-            scale=1,  # unit: cm
-            enable_self_collisions=False,
-            collapse_fixed_joints=True,
-            force_show_colliders=False,
+            mass=0.0  # Zero mass makes it kinematic (fixed in space)
         )
+        return anchor_body
 
-        # Use exact same setup as cloth_franka example
-        builder.joint_q[:6] = [0.0, 0.0, 0.0, -1.59695, 0.0, 2.5307]
-
-        # Find end effector body
-        self.endeffector_id = builder.body_count - 3
-        self.endeffector_offset = wp.transform(
-            [0.0, 0.0, 0.22],
-            wp.quat_identity(),
-        )
-
-    def create_rope(self, builder, length, radius, segments, rigidity, damping, end_weight):
+    def create_rope(self, builder, length, radius, segments, rigidity, damping, end_weight, anchor_body):
         # segment span and capsule geometry
         segment_span = length / segments
         # capsule total length = 2*half_height + 2*radius = segment_span
@@ -176,13 +158,13 @@ class Example:
             weight_cfg.density = end_weight  # treat as density-like knob for simplicity
             builder.add_shape_sphere(last, radius=weight_radius, cfg=weight_cfg)
 
-        # Attach first body to Franka end effector with a ball joint (free rotation)
+        # Attach first body to anchor with a ball joint (free rotation)
         if bodies:
             first = bodies[0]
             builder.add_joint_ball(
-                parent=self.endeffector_id,
+                parent=anchor_body,
                 child=first,
-                parent_xform=self.endeffector_offset,
+                parent_xform=wp.transform(p=wp.vec3(0.0, 0.0, 0.0), q=wp.quat_identity()),
                 child_xform=wp.transform(p=wp.vec3(0.0, 0.0, +tip_offset), q=wp.quat_identity()),
                 key="rope_anchor",
             )
@@ -204,16 +186,15 @@ class Example:
 
     @staticmethod
     def add_args(parser):
-        parser.add_argument("--length", type=float, default=0.3, help="Total rope length")
-        parser.add_argument("--width", type=float, default=0.01, help="Rope width (diameter)")
+        parser.add_argument("--length", type=float, default=10, help="Total rope length")
+        parser.add_argument("--width", type=float, default=0.05, help="Rope width (diameter)")
         parser.add_argument("--segments", type=int, default=8, help="Number of rope segments")
         parser.add_argument("--rigidity", type=float, default=10.0, help="Angular stiffness for joints")
         parser.add_argument("--damping", type=float, default=1.0, help="Angular damping for joints")
         parser.add_argument("--end-weight", type=float, default=0.0, help="Additional weight at rope end")
-        parser.add_argument("--anchor-height", type=float, default=0.4, help="World Z position of rope anchor")
-        parser.add_argument("--anchor-x", type=float, default=0.0, help="World X position of Franka base")
-        parser.add_argument("--anchor-y", type=float, default=0.0, help="World Y position of Franka base")
-        parser.add_argument("--no-rope", action="store_true", help="Disable rope, show only Franka robot")
+        parser.add_argument("--anchor-height", type=float, default=2, help="World Z position of rope anchor")
+        parser.add_argument("--anchor-x", type=float, default=0.0, help="World X position of rope anchor")
+        parser.add_argument("--anchor-y", type=float, default=0.0, help="World Y position of rope anchor")
 
     def capture(self):
         if wp.get_device().is_cuda:
