@@ -348,6 +348,8 @@ def main():
     
     # Add custom examples that don't follow the standard naming convention
     example_map["rope2"] = "newton.examples.basic.example_rope2"
+    example_map["rope_manip"] = "newton.examples.basic.example_rope_manipulator"
+    example_map["robot_rope"] = "newton.examples.basic.example_robot_rope"
 
     if len(sys.argv) < 2:
         print("Usage: python -m newton.examples <example_name>")
