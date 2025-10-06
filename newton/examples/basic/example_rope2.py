@@ -60,22 +60,32 @@ class Example:
 
         for i in range(num_links):
             if i == 0:
-                builder.add_joint_revolute(
+                # Use D6 joint with only angular DOF for 3D rotation with damping only
+                angular_axes = [
+                    builder.JointDofConfig(axis=newton.Axis.X, target_ke=1.0, target_kd=50.0),
+                    builder.JointDofConfig(axis=newton.Axis.Y, target_ke=1.0, target_kd=50.0),
+                    builder.JointDofConfig(axis=newton.Axis.Z, target_ke=1.0, target_kd=50.0),
+                ]
+                builder.add_joint_d6(
                     parent=-1,
                     child=links[i],
-                    axis=wp.vec3(1.0, 1.0, 1.0),
+                    angular_axes=angular_axes,
                     parent_xform=wp.transform(p=wp.vec3(0.0, 0.0, 6.0), q=wp.quat_identity()),
                     child_xform=wp.transform(p=wp.vec3(-hx, 0.0, 0.0), q=wp.quat_identity()),
                 )
             else:
-                builder.add_joint_revolute(
+                # Use D6 joint with only angular DOF for 3D rotation with stiffness
+                angular_axes = [
+                    builder.JointDofConfig(axis=newton.Axis.X, target_ke=500.0, target_kd=50.0),
+                    builder.JointDofConfig(axis=newton.Axis.Y, target_ke=500.0, target_kd=50.0),
+                    builder.JointDofConfig(axis=newton.Axis.Z, target_ke=500.0, target_kd=50.0),
+                ]
+                builder.add_joint_d6(
                     parent=links[i-1],
                     child=links[i],
-                    axis=wp.vec3(1.0, 1.0, 1.0),
+                    angular_axes=angular_axes,
                     parent_xform=wp.transform(p=wp.vec3(hx, 0.0, 0.0), q=wp.quat_identity()),
                     child_xform=wp.transform(p=wp.vec3(-hx, 0.0, 0.0), q=wp.quat_identity()),
-                    target_ke=800.0,
-                    target_kd=50.0,
                 )
 
         builder.add_ground_plane()
@@ -142,4 +152,4 @@ if __name__ == "__main__":
     # Create viewer and run
     example = Example(viewer)
 
-    newton.examples.run(example)
+    newton.examples.run(example, args)
