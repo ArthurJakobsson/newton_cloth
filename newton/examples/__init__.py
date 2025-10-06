@@ -177,6 +177,7 @@ def main():
 
     # Map short names to full module paths
     example_map = {
+        "rope2": "newton.examples.basic.example_rope2",
         "example_basic_rope": "newton.examples.basic.example_basic_rope",
         "basic_pendulum": "newton.examples.basic.example_basic_pendulum",
         "basic_urdf": "newton.examples.basic.example_basic_urdf",

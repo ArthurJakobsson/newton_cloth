@@ -37,6 +37,35 @@ from newton import Model, ModelBuilder, State, eval_fk
 from newton.solvers import SolverFeatherstone, SolverXPBD
 
 
+@wp.kernel
+def apply_anchor_force_kernel(
+    body_f: wp.array(dtype=wp.spatial_vector),
+    anchor_body: int,
+    force_x: float,
+):
+    """Simple kernel to apply force to anchor body"""
+    tid = wp.tid()
+    if tid == anchor_body:
+        # Apply force (only in x direction)
+        body_f[tid] = wp.spatial_vector(
+            wp.vec3(force_x, 0.0, 0.0),
+            wp.vec3(0.0, 0.0, 0.0)
+        )
+
+@wp.kernel
+def test_force_all_bodies_kernel(
+    body_f: wp.array(dtype=wp.spatial_vector),
+    force_x: float,
+):
+    """Test kernel to apply force to all bodies"""
+    tid = wp.tid()
+    # Apply small force to all bodies to see which one moves
+    body_f[tid] = wp.spatial_vector(
+        wp.vec3(force_x * 0.1, 0.0, 0.0),  # Smaller force
+        wp.vec3(0.0, 0.0, 0.0)
+    )
+
+
 def _make_d6_ball_axes(rigidity: float, damping: float = 0.0) -> list[newton.ModelBuilder.JointDofConfig]:
     # Three angular axes with drive to zero relative angle to emulate a rotational spring.
     return [
@@ -76,6 +105,13 @@ class Example:
         rigidity = float(args.rigidity)
         damping = float(args.damping)
         end_weight = float(args.end_weight)
+        
+        # oscillation parameters
+        self.oscillation_amplitude = 1  # Oscillate from -0.5 to +0.5 in x
+        self.oscillation_period = 3.0     # 3 second period
+        self.anchor_base_x = float(args.anchor_x)
+        self.anchor_base_y = float(args.anchor_y)
+        self.anchor_base_z = float(args.anchor_height)
 
         builder = newton.ModelBuilder()
 
@@ -88,19 +124,23 @@ class Example:
         builder.soft_contact_mu = 0.5  # friction
 
         # Create anchor point and build rope
-        anchor_body = self.create_anchor(builder)
-        self.create_rope(builder, length, radius, segments, rigidity, damping, end_weight, anchor_body)
+        self.anchor_body = self.create_anchor(builder)
+        print(f"Created anchor body with ID: {self.anchor_body}")
+        print(f"Bodies before rope creation: {builder.body_count}")
+        self.create_rope(builder, length, radius, segments, rigidity, damping, end_weight, self.anchor_body)
+        print(f"Bodies after rope creation: {builder.body_count}")
 
         # finalize model
         self.model = builder.finalize()
+        self.model.ground = True  # Like the working example_rigid_force.py
 
         # Set contact parameters on the model like cloth_franka
         self.model.soft_contact_ke = 100
         self.model.soft_contact_kd = 2e-3
         self.model.soft_contact_mu = 0.5
 
-        # Use the same solver setup as cloth_franka
-        self.solver = newton.solvers.SolverFeatherstone(self.model, update_mass_matrix_interval=self.sim_substeps)
+        # Use XPBD solver like the working example_rigid_force.py
+        self.solver = newton.solvers.SolverXPBD(self.model)
 
         self.state_0 = self.model.state()
         self.state_1 = self.model.state()
@@ -114,15 +154,46 @@ class Example:
 
         self.capture()
 
+    def apply_anchor_oscillation(self):
+        """Apply oscillation motion to the anchor body using direct force application"""
+        # Calculate oscillation parameters
+        omega = 2.0 * math.pi / self.oscillation_period
+        oscillation_x = self.oscillation_amplitude * math.sin(omega * self.sim_time)
+        
+        # Calculate spring force based on target position
+        target_x = self.anchor_base_x + oscillation_x
+        spring_force_x = 1000.0 * oscillation_x  # Reasonable force for oscillation
+        
+        # Debug: print anchor body ID and oscillation info (less frequently)
+        if int(self.sim_time * 2) % 20 == 0:  # Print every 10 seconds
+            print(f"Anchor body ID: {self.anchor_body}, Sim time: {self.sim_time:.3f}, Omega: {omega:.3f}, Oscillation x: {oscillation_x:.3f}")
+            print(f"Total bodies: {self.model.body_count}, Force being applied: {spring_force_x:.3f}")
+        
+        # Apply force using direct assign method (like example_rigid_force.py)
+        
+        # Anchor is now fixed, so no forces needed
+        # The rope should hang naturally from the fixed anchor
+        if int(self.sim_time * 2) % 20 == 0:  # Print every 10 seconds
+            print(f"Rope hanging from fixed anchor - no forces applied")
+
     def create_anchor(self, builder):
         # Create a fixed anchor point for the rope (mass=0 makes it kinematic/fixed)
         anchor_body = builder.add_body(
             xform=wp.transform(
-                p=wp.vec3(float(self.args.anchor_x), float(self.args.anchor_y), float(self.args.anchor_height)),
+                p=wp.vec3(self.anchor_base_x, self.anchor_base_y, self.anchor_base_z),
                 q=wp.quat_identity()
             ),
             mass=0.0  # Zero mass makes it kinematic (fixed in space)
         )
+        
+        # Add a visible sphere to the anchor so we can see it
+        cfg = newton.ModelBuilder.ShapeConfig()
+        cfg.density = 1.0
+        cfg.ke = 1e2
+        cfg.kd = 1.5e-6
+        cfg.mu = 0.5
+        builder.add_shape_sphere(anchor_body, radius=0.1, cfg=cfg)
+        
         return anchor_body
 
     def create_rope(self, builder, length, radius, segments, rigidity, damping, end_weight, anchor_body):
@@ -132,6 +203,8 @@ class Example:
         half_height = max(0.0, 0.5 * max(segment_span - 2.0 * radius, 0.0))
         tip_offset = half_height + radius
 
+        print(f"Creating rope with {segments} segments, length={length}, radius={radius}")
+
         # Create rope bodies
         bodies = []
         for i in range(segments):
@@ -140,15 +213,16 @@ class Example:
             cx, cy = float(self.args.anchor_x), float(self.args.anchor_y)
             body = builder.add_body(xform=wp.transform(p=wp.vec3(cx, cy, cz), q=wp.quat_identity()))
 
-            # Set rope material properties like cloth_franka
+            # Set rope material properties - reduced for stability
             cfg = newton.ModelBuilder.ShapeConfig()
-            cfg.density = 0.2  # Same as cloth density in cloth_franka
-            cfg.ke = 1e2      # Same stiffness as cloth_franka
-            cfg.kd = 1.5e-6   # Same damping as cloth_franka
-            cfg.mu = 0.5      # Same friction as cloth_franka
+            cfg.density = 0.1  # Reduced density for less bouncing
+            cfg.ke = 1e1      # Reduced stiffness
+            cfg.kd = 1e-3     # Increased damping for stability
+            cfg.mu = 0.5      # Same friction
             builder.add_shape_capsule(body, radius=radius, half_height=half_height, cfg=cfg)
 
             bodies.append(body)
+            print(f"Created rope segment {i} with body ID {body} at position ({cx}, {cy}, {cz})")
 
         # Add extra weight at the end by attaching an additional dense sphere to the last body
         if end_weight > 0.0:
@@ -169,16 +243,14 @@ class Example:
                 key="rope_anchor",
             )
 
-        # Create D6 joints (ball-like) between consecutive bodies with angular stiffness
-        angular_axes = _make_d6_ball_axes(rigidity=rigidity, damping=damping)
+        # Create simple revolute joints between consecutive bodies
         for i in range(1, len(bodies)):
             parent = bodies[i - 1]
             child = bodies[i]
-            builder.add_joint_d6(
+            builder.add_joint_revolute(
                 parent=parent,
                 child=child,
-                linear_axes=[],
-                angular_axes=angular_axes,
+                axis=wp.vec3(1.0, 0.0, 0.0),  # Allow rotation around X axis
                 parent_xform=wp.transform(p=wp.vec3(0.0, 0.0, -tip_offset), q=wp.quat_identity()),
                 child_xform=wp.transform(p=wp.vec3(0.0, 0.0, +tip_offset), q=wp.quat_identity()),
                 key=f"rope_link_{i-1}_{i}",
@@ -189,8 +261,8 @@ class Example:
         parser.add_argument("--length", type=float, default=10, help="Total rope length")
         parser.add_argument("--width", type=float, default=0.05, help="Rope width (diameter)")
         parser.add_argument("--segments", type=int, default=8, help="Number of rope segments")
-        parser.add_argument("--rigidity", type=float, default=10.0, help="Angular stiffness for joints")
-        parser.add_argument("--damping", type=float, default=1.0, help="Angular damping for joints")
+        parser.add_argument("--rigidity", type=float, default=1.0, help="Angular stiffness for joints")
+        parser.add_argument("--damping", type=float, default=10.0, help="Angular damping for joints")
         parser.add_argument("--end-weight", type=float, default=0.0, help="Additional weight at rope end")
         parser.add_argument("--anchor-height", type=float, default=2, help="World Z position of rope anchor")
         parser.add_argument("--anchor-x", type=float, default=0.0, help="World X position of rope anchor")
@@ -208,22 +280,23 @@ class Example:
         for _ in range(self.sim_substeps):
             self.state_0.clear_forces()
 
-            # apply forces to the model
-            self.viewer.apply_forces(self.state_0)
+            # Apply oscillation to anchor body
+            self.apply_anchor_oscillation()
 
             self.contacts = self.model.collide(self.state_0)
             self.solver.step(self.state_0, self.state_1, self.control, self.contacts, self.sim_dt)
 
             # swap states
             self.state_0, self.state_1 = self.state_1, self.state_0
+            
+            # Update simulation time each substep
+            self.sim_time += self.sim_dt
 
     def step(self):
         if self.graph:
             wp.capture_launch(self.graph)
         else:
             self.simulate()
-
-        self.sim_time += self.frame_dt
 
     def test(self):
         pass
