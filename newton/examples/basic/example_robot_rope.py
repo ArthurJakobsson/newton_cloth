@@ -44,6 +44,14 @@ class Example:
         # Heuristic: end-effector is the last body added when bodies_follow_joint_ordering=True
         ee_body = ur10_body_indices[-1]
 
+        # Add a cylinder pedestal centered under the robot base
+        builder.add_shape_cylinder(
+            -1,
+            xform=wp.transform(wp.vec3(0.0, 0.0, height / 2.0)),
+            half_height=height / 2.0,
+            radius=0.08,
+        )
+
         # optional: small sphere visual at the end-effector for clarity
         vis_cfg = newton.ModelBuilder.ShapeConfig()
         vis_cfg.density = 0.0
@@ -52,7 +60,7 @@ class Example:
         # -------------------------------------------------
         # Build a rope and attach its first segment to UR10 EE
         # -------------------------------------------------
-        length = 4.0
+        length = 2.0
         width = 0.05
         radius = 0.5 * width
         segments = 16
