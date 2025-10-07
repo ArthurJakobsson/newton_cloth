@@ -7,7 +7,7 @@ import newton.examples
 import newton.utils
 
 
-class Example:
+class RopeRobot:
     def __init__(self, viewer):
         # setup simulation parameters first
         self.fps = 100
@@ -60,10 +60,10 @@ class Example:
         # -------------------------------------------------
         # Build a rope and attach its first segment to UR10 EE
         # -------------------------------------------------
-        length = 2.0
-        width = 0.05
+        length = 1.4
+        width = 0.02
         radius = 0.5 * width
-        segments = 16
+        segments = 25
 
         segment_span = length / segments
         half_height = max(0.0, 0.5 * max(segment_span - 2.0 * radius, 0.0))
@@ -81,8 +81,8 @@ class Example:
 
             cfg = newton.ModelBuilder.ShapeConfig()
             cfg.density = 0.2
-            cfg.ke = 5e1
-            cfg.kd = 5e-3
+            cfg.ke = 1e6      # Very high stiffness for rigid segments
+            cfg.kd = 1e4      # Very high damping for stability
             cfg.mu = 0.6
             builder.add_shape_capsule(body, radius=radius, half_height=half_height, cfg=cfg)
             bodies.append(body)
@@ -102,12 +102,19 @@ class Example:
         for i in range(1, len(bodies)):
             parent = bodies[i - 1]
             child = bodies[i]
+            
             builder.add_joint_revolute(
                 parent=parent,
                 child=child,
-                axis=wp.vec3(1.0, 0.0, 0.0),
+                axis=wp.vec3(1.0, 0.0, 0.0), #try alternating the revolute joints
                 parent_xform=wp.transform(p=wp.vec3(0.0, 0.0, -tip_offset), q=wp.quat_identity()),
                 child_xform=wp.transform(p=wp.vec3(0.0, 0.0, +tip_offset), q=wp.quat_identity()),
+                limit_lower=-0.005,  # Even smaller limit range (±3°)
+                limit_upper=0.005,
+                limit_ke=1e10,       # Much higher stiffness for limits
+                limit_kd=1e6,       # Much higher damping for limits
+                target_ke=0.0,      # No target control
+                target_kd=0.0,
                 key=f"rope_link_{i-1}_{i}",
             )
 
@@ -166,11 +173,13 @@ class Example:
         self.viewer.end_frame()
 
 
+
+
 if __name__ == "__main__":
     # Parse arguments and initialize viewer
     viewer, args = newton.examples.init()
 
     # Create viewer and run
-    example = Example(viewer)
+    example = RopeRobot(viewer)
 
     newton.examples.run(example, args)
