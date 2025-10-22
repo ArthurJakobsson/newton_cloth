@@ -352,6 +352,7 @@ def main():
     example_map["robot_rope"] = "newton.examples.basic.example_robot_rope"
     example_map["ur10_simple_control"] = "newton.examples.basic.ur10_simple_control"
     example_map["manual_robot_rope"] = "newton.examples.basic.manual_robot_rope"
+    example_map["robot_rope_gym"] = "newton.examples.basic.robot_rope_gym"
 
     if len(sys.argv) < 2:
         print("Usage: python -m newton.examples <example_name>")

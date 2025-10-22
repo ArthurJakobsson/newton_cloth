@@ -110,6 +110,14 @@ class RopeRobot:
             radius=0.08,
         )
 
+        # the pole
+        builder.add_shape_cylinder(
+            -1,
+            xform=wp.transform(wp.vec3(1.5, 0.0, height / 2.0)),
+            half_height=height,
+            radius=0.02,
+        )
+
         # optional: small sphere visual at the end-effector for clarity
         vis_cfg = newton.ModelBuilder.ShapeConfig()
         vis_cfg.density = 0.0
@@ -156,23 +164,21 @@ class RopeRobot:
                 key="rope_anchor_ur10",
             )
 
-        # revolute joints along the rope
+        # D6 joints along the rope: two bending axes, locked twist
         for i in range(1, len(bodies)):
             parent = bodies[i - 1]
             child = bodies[i]
-            
-            builder.add_joint_revolute(
+
+            builder.add_joint_d6(
                 parent=parent,
                 child=child,
-                axis=wp.vec3(1.0, 0.0, 0.0), #try alternating the revolute joints
                 parent_xform=wp.transform(p=wp.vec3(0.0, 0.0, -tip_offset), q=wp.quat_identity()),
                 child_xform=wp.transform(p=wp.vec3(0.0, 0.0, +tip_offset), q=wp.quat_identity()),
-                limit_lower=-0.005,  # Even smaller limit range (±3°)
-                limit_upper=0.005,   # increase this relative to the limit_lower
-                limit_ke=5e5,       # Lower stiffness for stability
-                limit_kd=5e3,       # Lower damping for stability
-                target_ke=0.0,      # No target control
-                target_kd=0.0,
+                angular_axes=[
+                    newton.ModelBuilder.JointDofConfig(axis=wp.vec3(1.0, 0.0, 0.0), limit_lower=-0.3, limit_upper=0.3),
+                    newton.ModelBuilder.JointDofConfig(axis=wp.vec3(0.0, 1.0, 0.0), limit_lower=-0.3, limit_upper=0.3),
+                    newton.ModelBuilder.JointDofConfig(axis=wp.vec3(0.0, 0.0, 1.0), limit_lower=0.0, limit_upper=0.0),  # lock twist
+                ],
                 key=f"rope_link_{i-1}_{i}",
             )
 
