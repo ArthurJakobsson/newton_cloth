@@ -43,7 +43,7 @@ def _update_min_distance_kernel(
     
     current_min = min_distances[env_idx]
     
-    for i in range(num_segments):
+    for i in range(5,num_segments): # skip the first 5 segments to avoid the anchor point
         body_idx = start_idx + i
         transform = body_transforms[body_idx]
         pos = wp.transform_get_translation(transform)
@@ -279,9 +279,13 @@ class RopeRobotGym:
     def capture(self):
         """Capture GPU graph for optimization"""
         if wp.get_device().is_cuda:
-            with wp.ScopedCapture() as capture:
-                self.simulate(0)  # Use timestep 0 for capture
-            self.graph = capture.graph
+            try:
+                with wp.ScopedCapture() as capture:
+                    self.simulate(0)  # Use timestep 0 for capture
+                self.graph = capture.graph
+            except Exception as e:
+                print(f"Warning: GPU capture failed: {e}")
+                self.graph = None
         else:
             self.graph = None
 
@@ -319,18 +323,19 @@ class RopeRobotGym:
             self.solver.step(self.state_0, self.state_1, self.control, self.contacts, self.sim_dt)
             
             # Update minimum distances in real-time
-            wp.launch(
-                _update_min_distance_kernel,
-                dim=self.n_envs,
-                inputs=[
-                    self.state_0.body_q,  # This contains transform data (pos + quat)
-                    self.rope_start_indices,
-                    self.rope_segments,
-                    self.target_point,
-                    self.min_distances,
-                ],
-                device=self.device,
-            )
+            if self.min_distances is not None:
+                wp.launch(
+                    _update_min_distance_kernel,
+                    dim=self.n_envs,
+                    inputs=[
+                        self.state_0.body_q,  # This contains transform data (pos + quat)
+                        self.rope_start_indices,
+                        self.rope_segments,
+                        self.target_point,
+                        self.min_distances,
+                    ],
+                    device=self.device,
+                )
             
             # Swap states
             self.state_0, self.state_1 = self.state_1, self.state_0
@@ -371,6 +376,9 @@ class RopeRobotGym:
             else:
                 self.simulate(timestep)
             
+            # Render continuously during simulation
+            if self.render_flag:
+                self.render()
         
         # Compute scores
         scores = self.compute_score()
@@ -392,6 +400,19 @@ class RopeRobotGym:
             self.viewer.log_state(self.state_0)
             self.viewer.log_contacts(self.contacts, self.state_0)
             self.viewer.end_frame()
+    
+    def cleanup(self):
+        """Clean up resources"""
+        if hasattr(self, 'viewer') and self.viewer:
+            self.viewer.close()
+        
+        # Clear arrays to free memory
+        if hasattr(self, 'min_distances') and self.min_distances is not None:
+            del self.min_distances
+        if hasattr(self, 'joint_target_out') and self.joint_target_out is not None:
+            del self.joint_target_out
+        if hasattr(self, 'current_timestep') and self.current_timestep is not None:
+            del self.current_timestep
 
 
 if __name__ == "__main__":
@@ -403,13 +424,13 @@ if __name__ == "__main__":
         [0.0, 0.0],      # joint 0
         [-1.57, -1.57],  # joint 1  
         [0.0, 0.0],      # joint 2
-        [-1.57, -1.57],  # joint 3
+        [-1.57, 1.57],  # joint 3
         [0.0, 0.0],      # joint 4
         [0.0, 0.0],      # joint 5
     ])
     
     # Create gym environment
-    env = RopeRobotGym(trajectory, total_time=2.0, render=True)
+    env = RopeRobotGym(trajectory, total_time=10.0, render=True)
     
     # Example rope configurations
     rope_configs = [
@@ -426,9 +447,11 @@ if __name__ == "__main__":
     print(f"Scores: {scores}")
     print(f"Minimum distances to target point: {scores}")
     
-    # Render if enabled
+    # Note: Rendering happens continuously during simulation if enabled
     if env.render_flag:
         print("Rendering is enabled - simulation will be slower but visual")
-        env.render()  # Render the final state
     else:
         print("Rendering is disabled - simulation will be faster")
+    
+    # Clean up resources
+    env.cleanup()
