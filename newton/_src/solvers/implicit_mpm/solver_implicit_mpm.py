@@ -22,11 +22,11 @@ import numpy as np
 import warp as wp
 import warp.fem as fem
 import warp.sparse as sp
-from typing_extensions import override
 from warp.context import assert_conditional_graph_support
 
 import newton
 
+from ...core.types import override
 from ..solver import SolverBase
 from .rasterized_collisions import (
     Collider,
@@ -381,7 +381,7 @@ def project_particle_strain(
     if compliance <= _EPSILON:
         return wp.identity(n=3, dtype=float)
 
-    U, xi, V = wp.svd3(F)
+    _U, xi, _V = wp.svd3(F)
 
     if wp.min(xi) < MIN_PRINCIPAL_STRAIN or wp.max(xi) > MAX_PRINCIPAL_STRAIN:
         return F_prev  # non-recoverable, discard update
@@ -466,7 +466,7 @@ def strain_rhs(
 ):
     F_prev = elastic_strains[s.qp_index]
 
-    U_prev, xi_prev, V_prev = wp.svd3(F_prev)
+    U_prev, xi_prev, _V_prev = wp.svd3(F_prev)
 
     _compliance, _poisson, damping = extract_elastic_parameters(elastic_parameters(s))
 
@@ -540,7 +540,7 @@ class ImplicitMPMOptions:
     yield_stress: float = 0.0
     """Yield stress for the plasticity model. (Pa)"""
     hardening: float = 0.0
-    """Hardening factor for the plasticity model (Mulltiplier for det(Fp))."""
+    """Hardening factor for the plasticity model (Multiplier for det(Fp))."""
     critical_fraction: float = 0.0
     """Fraction for particles under which the yield surface collapses."""
 

@@ -220,8 +220,8 @@ add_example_test(
     name="basic.example_basic_urdf",
     devices=test_devices,
     test_options={"num-frames": 200},
-    test_options_cpu={"num_envs": 16},
-    test_options_cuda={"num_envs": 64},
+    test_options_cpu={"num_worlds": 16},
+    test_options_cuda={"num_worlds": 64},
     use_viewer=True,
 )
 
@@ -270,6 +270,14 @@ add_example_test(
 add_example_test(
     TestClothExamples,
     name="cloth.example_cloth_style3d",
+    devices=cuda_test_devices,
+    test_options={},
+    test_options_cuda={"num-frames": 32},
+    use_viewer=True,
+)
+add_example_test(
+    TestClothExamples,
+    name="cloth.example_cloth_h1",
     devices=cuda_test_devices,
     test_options={},
     test_options_cuda={"num-frames": 32},
@@ -528,6 +536,15 @@ add_example_test(
     devices=test_devices,
     test_options={"num-frames": 4 * 60},  # train_iters * sim_steps
     test_options_cpu={"num-frames": 2 * 60},
+    use_viewer=True,
+)
+
+add_example_test(
+    TestDiffSimExamples,
+    name="diffsim.example_diffsim_bear",
+    devices=test_devices,
+    test_options={"usd_required": True, "num-frames": 4 * 60},  # train_iters * sim_steps
+    test_options_cpu={"num-frames": 2, "sim-steps": 10},
     use_viewer=True,
 )
 
