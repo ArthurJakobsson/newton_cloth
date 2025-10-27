@@ -49,11 +49,10 @@ def update_joint_target_trajectory_kernel(
 
     num_dofs = joint_target.shape[1]
     for dof in range(num_dofs):
-        # add world_idx here to make the sequence of dofs different for each world
-        di = (dof + world_idx) % num_dofs
+        # all worlds use the same trajectory sequence
         joint_target[world_idx, dof] = wp.lerp(
-            joint_target_trajectory[step, world_idx, di],
-            joint_target_trajectory[step + 1, world_idx, di],
+            joint_target_trajectory[step, world_idx, dof],
+            joint_target_trajectory[step + 1, world_idx, dof],
             wp.frac(t),
         )
 
@@ -97,10 +96,8 @@ class Example:
         builder = newton.ModelBuilder()
         builder.replicate(ur10, self.num_worlds, spacing=(2, 2, 0))
 
-        # set random joint configurations
-        rng = np.random.default_rng(42)
-        joint_q = rng.uniform(-wp.pi, wp.pi, builder.joint_dof_count)
-        builder.joint_q = joint_q.tolist()
+        # set same initial joint configuration for all robots
+        builder.joint_q = [0.0] * builder.joint_dof_count
 
         builder.add_ground_plane()
 
